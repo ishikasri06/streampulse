@@ -638,13 +638,23 @@ Planned improvements include:
 
 ## 📸 Dashboard
 
+StreamPulse provides a real-time monitoring dashboard for observing application services and their performance metrics.
+
 ### Live Monitoring Dashboard
 
-Add the dashboard screenshot here after uploading it to the repository:
+![StreamPulse Dashboard](docs/dashboard.png)
 
-```markdown
-![StreamPulse Dashboard](docs/assets/dashboard-preview.png)
-```
+### Service Metrics
+
+![Service Metrics](docs/service-metrics.png)
+
+### Average Response Time
+
+![Average Response Time by Service](docs/avg-response-time.png)
+
+### Error Count
+
+![Error Count by Service](docs/error-count.png)
 
 **Frontend URL:** [http://localhost:5173](http://localhost:5173)
 
@@ -694,7 +704,6 @@ Python Producer ──> Apache Kafka ──> Spark Structured Streaming ──> 
 ## 👩‍💻 Author
 
 **Ishika Srivastava**  
-Data Engineer | Software Development | Distributed Systems
 
 ---
 
