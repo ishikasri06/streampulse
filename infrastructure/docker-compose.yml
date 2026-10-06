@@ -1,36 +1,5 @@
 services:
 
-  kafka:
-    image: apache/kafka:4.0.0
-    container_name: streampulse-kafka
-    ports:
-      - "9092:9092"
-      - "9094:9094"
-    environment:
-      KAFKA_NODE_ID: 1
-      KAFKA_PROCESS_ROLES: broker,controller
-
-      KAFKA_LISTENERS: INTERNAL://:9092,EXTERNAL://:9094,CONTROLLER://:9093
-      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:9094
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
-
-      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
-
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-
-      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      KAFKA_NUM_PARTITIONS: 3
-
-    healthcheck:
-      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1 || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
   spark:
     image: apache/spark:3.5.9
     container_name: streampulse-spark
@@ -47,44 +16,42 @@ services:
   spark-streaming:
     image: apache/spark:3.5.9
     container_name: streampulse-spark-streaming
-    depends_on:
-      kafka:
-        condition: service_healthy
-      cassandra:
-        condition: service_healthy
     command: >
       /opt/spark/bin/spark-submit
       --conf spark.jars.ivy=/tmp/.ivy2
-      --conf spark.cassandra.connection.host=cassandra
+      --files /opt/spark/streaming/certs/secure-connect-streampulse.zip
       --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.9,com.datastax.spark:spark-cassandra-connector_2.12:3.5.1
       /opt/spark/streaming/spark_streaming.py
     environment:
       - HOME=/tmp
+      - KAFKA_SERVER=${KAFKA_SERVER}
+      - KAFKA_USERNAME=${KAFKA_USERNAME}
+      - KAFKA_PASSWORD=${KAFKA_PASSWORD}
+      - ASTRA_TOKEN=${ASTRA_TOKEN}
     volumes:
       - ../streaming:/opt/spark/streaming
     networks:
       - default
 
   producer:
-    build:
-      context: ../producer
+    build: ../producer
     container_name: streampulse-producer
-    depends_on:
-      kafka:
-        condition: service_healthy
     environment:
-      KAFKA_SERVER: kafka:9092
+      KAFKA_SERVER: ${KAFKA_SERVER}
+      KAFKA_USERNAME: ${KAFKA_USERNAME}
+      KAFKA_PASSWORD: ${KAFKA_PASSWORD}
+      KAFKA_CA_FILE: ca.pem
     restart: unless-stopped
 
   backend:
     build:
       context: ../backend
     container_name: streampulse-backend
-    depends_on:
-      cassandra:
-        condition: service_healthy
     environment:
-      CASSANDRA_HOST: cassandra
+      ASTRA_TOKEN: ${ASTRA_TOKEN}
+      ASTRA_SECURE_CONNECT_BUNDLE: /app/certs/secure-connect-streampulse.zip
+    volumes:
+      - ../streaming/certs:/app/certs
     ports:
       - "8001:8001"
     healthcheck:
@@ -104,21 +71,3 @@ services:
     ports:
       - "5173:5173"
     restart: unless-stopped
-
-  cassandra:
-    image: cassandra:5.0
-    container_name: streampulse-cassandra
-    ports:
-      - "9042:9042"
-    volumes:
-      - cassandra_data:/var/lib/cassandra
-    healthcheck:
-      test: ["CMD-SHELL", "cqlsh -e 'SELECT now() FROM system.local;' || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
-    
-
-volumes:
-  cassandra_data:

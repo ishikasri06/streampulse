@@ -27,3 +27,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+streaming/certs/
+producer/ca.pem

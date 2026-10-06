@@ -7,7 +7,11 @@ from datetime import datetime, timezone
 from kafka import KafkaProducer
 
 
-KAFKA_SERVER = os.getenv("KAFKA_SERVER", "localhost:9094")
+KAFKA_SERVER = os.getenv("KAFKA_SERVER")
+KAFKA_USERNAME = os.getenv("KAFKA_USERNAME")
+KAFKA_PASSWORD = os.getenv("KAFKA_PASSWORD")
+KAFKA_CA_FILE = os.getenv("KAFKA_CA_FILE", "ca.pem")
+
 KAFKA_TOPIC = "application-logs"
 
 
@@ -43,6 +47,11 @@ log_templates = {
 
 producer = KafkaProducer(
     bootstrap_servers=KAFKA_SERVER,
+    security_protocol="SASL_SSL",
+    sasl_mechanism="SCRAM-SHA-256",
+    sasl_plain_username=KAFKA_USERNAME,
+    sasl_plain_password=KAFKA_PASSWORD,
+    ssl_cafile=KAFKA_CA_FILE,
     value_serializer=lambda value: json.dumps(value).encode("utf-8"),
 )
 

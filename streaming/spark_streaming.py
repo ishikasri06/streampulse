@@ -1,3 +1,4 @@
+import os
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
     from_json,
@@ -17,10 +18,39 @@ from pyspark.sql.types import (
 
 
 # Create Spark session
+# Create Spark session
 spark = (
     SparkSession.builder
     .appName("StreamPulseLogAnalytics")
     .master("local[*]")
+
+    # Astra DB configuration
+    .config(
+    "spark.cassandra.connection.config.cloud.path",
+    "secure-connect-streampulse.zip"
+)
+.config(
+    "spark.cassandra.connection.ssl.trustStore.path",
+    "/opt/spark/streaming/certs/astra/trustStore.jks"
+)
+.config(
+    "spark.cassandra.connection.ssl.trustStore.password",
+    "changeit"
+)
+
+    .config(
+        "spark.cassandra.auth.username",
+        "token"
+    )
+    .config(
+        "spark.cassandra.auth.password",
+        os.getenv("ASTRA_TOKEN")
+    )
+    .config(
+        "spark.dse.continuousPagingEnabled",
+        "false"
+    )
+
     .getOrCreate()
 )
 
@@ -42,7 +72,27 @@ log_schema = StructType([
 raw_stream = (
     spark.readStream
     .format("kafka")
-    .option("kafka.bootstrap.servers", "kafka:9092")
+    .option(
+    "kafka.bootstrap.servers",
+    os.getenv(
+        "KAFKA_SERVER",
+        "kafka-2dc91f64-streampulse.j.aivencloud.com:13433"
+    )
+)
+.option("kafka.security.protocol", "SASL_SSL")
+.option("kafka.sasl.mechanism", "SCRAM-SHA-256")
+.option(
+    "kafka.sasl.jaas.config",
+    f'org.apache.kafka.common.security.scram.ScramLoginModule required '
+    f'username="{os.getenv("KAFKA_USERNAME")}" '
+    f'password="{os.getenv("KAFKA_PASSWORD")}";'
+)
+.option(
+    "kafka.ssl.truststore.location",
+    "/opt/spark/streaming/certs/aiven-truststore.jks"
+)
+.option("kafka.ssl.truststore.password", "changeit")
+.option("kafka.ssl.truststore.type", "JKS")
     .option("subscribe", "application-logs")
     .option("startingOffsets", "latest")
     .load()

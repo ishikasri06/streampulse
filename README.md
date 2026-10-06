@@ -2,7 +2,7 @@
 
 StreamPulse is a real-time distributed log analytics and monitoring platform that collects application logs, processes them as a continuous stream, stores aggregated service metrics, and displays them through a live monitoring dashboard.
 
-The project demonstrates a complete event-driven data pipeline using **Apache Kafka, Apache Spark Structured Streaming, Apache Cassandra, FastAPI, React, WebSockets, and Docker**.
+The project demonstrates a complete event-driven data pipeline using **Apache Kafka, Apache Spark Structured Streaming, DataStax Astra DB, FastAPI, React, WebSockets, and Docker**.
 
 ---
 
@@ -16,7 +16,7 @@ StreamPulse addresses this by continuously:
 2. Publishing logs to Apache Kafka
 3. Processing the stream using Spark Structured Streaming
 4. Aggregating service-level metrics
-5. Persisting metrics in Apache Cassandra
+5. Persisting metrics in **DataStax Astra DB**
 6. Exposing metrics through a FastAPI backend
 7. Streaming live updates to a React dashboard using WebSockets
 
@@ -29,13 +29,13 @@ Application Logs
 Python Log Generator
        │
        ▼
-Apache Kafka
+Aiven Kafka
        │
        ▼
 Spark Structured Streaming
        │
        ▼
-Apache Cassandra
+DataStax Astra DB
        │
        ▼
 FastAPI
@@ -61,9 +61,9 @@ React Dashboard
              │ JSON Events
              ▼
 ┌──────────────────────────┐
-│       Apache Kafka       │
+│       Aiven Kafka        │
 │                          │
-│ Topic: application-logs  │
+│  Topic: application-logs │
 └────────────┬─────────────┘
              │
              │ Streaming Events
@@ -80,11 +80,13 @@ React Dashboard
              │
              │ Aggregated Metrics
              ▼
-┌──────────────────────────┐
-│     Apache Cassandra     │
-│                          │
-│     service_metrics      │
-└────────────┬─────────────┘
+┌──────────────────────────────┐
+│      DataStax Astra DB       │
+│                              │
+│   Cassandra-compatible DB    │
+│                              │
+│      service_metrics         │
+└────────────┬─────────────────┘
              │
              │ Query Metrics
              ▼
@@ -109,25 +111,63 @@ React Dashboard
 └──────────────────────────┘
 ```
 
+### Cloud vs Local Components
+
+```text
+                    StreamPulse Architecture
+
+        LOCAL / DOCKER                  CLOUD
+        ──────────────                  ─────
+
+┌───────────────────────┐
+│ Python Producer       │
+└──────────┬────────────┘
+           │
+           ▼
+                              ┌──────────────────────┐
+                              │   Aiven Kafka ☁️     │
+                              └──────────┬───────────┘
+                                         │
+┌───────────────────────┐                │
+│ Spark Streaming       │◄───────────────┘
+└──────────┬────────────┘
+           │
+           ▼
+                              ┌──────────────────────┐
+                              │   Astra DB ☁️        │
+                              │ Cassandra-compatible  │
+                              └──────────┬───────────┘
+                                         │
+┌───────────────────────┐                │
+│ FastAPI               │◄───────────────┘
+└──────────┬────────────┘
+           │
+           │ WebSocket
+           ▼
+┌───────────────────────┐
+│ React Dashboard       │
+└───────────────────────┘
+```
+
 ---
 
 ## 🛠️ Tech Stack
 
-
-| Technology                     | Purpose                                          |
+| Technology | Purpose |
 | ------------------------------ | ------------------------------------------------ |
-| **Python**                     | Log generation and backend/streaming development |
-| **Apache Kafka**               | Real-time event streaming                        |
-| **Apache Spark**               | Distributed stream processing                    |
-| **Spark Structured Streaming** | Continuous Kafka stream processing               |
-| **Apache Cassandra**           | Distributed storage for service metrics          |
-| **FastAPI**                    | REST API and WebSocket backend                   |
-| **React**                      | Real-time monitoring dashboard                   |
-| **WebSocket**                  | Live metric updates                              |
-| **Docker**                     | Containerization                                 |
-| **Docker Compose**             | Multi-container orchestration                    |
-| **Git / GitHub**               | Version control and project hosting              |
-
+| **Python** | Log generation and streaming development |
+| **Apache Kafka** | Real-time event streaming |
+| **Aiven Kafka** | Managed cloud Kafka cluster |
+| **Apache Spark** | Distributed stream processing |
+| **Spark Structured Streaming** | Continuous Kafka stream processing |
+| **DataStax Astra DB** | Cloud Cassandra-compatible storage |
+| **Apache Cassandra** | Database technology used by Astra DB |
+| **FastAPI** | REST API and WebSocket backend |
+| **React** | Real-time monitoring dashboard |
+| **WebSocket** | Live metric updates |
+| **Docker** | Containerization |
+| **Docker Compose** | Local multi-container orchestration |
+| **Git / GitHub** | Version control and project hosting |
 
 ---
 
@@ -168,11 +208,15 @@ Supported log levels:
 
 Apache Kafka acts as the event streaming layer between the log generator and Spark.
 
+The project uses **Aiven Kafka**, a managed cloud Kafka service.
+
 ### Kafka Topic
 
-`application-logs`
+```text
+application-logs
+```
 
-The topic is configured with multiple partitions to allow parallel processing of incoming events.
+The topic uses multiple partitions to allow parallel processing of incoming events.
 
 Kafka decouples the log producer from the downstream stream-processing system.
 
@@ -180,12 +224,13 @@ Kafka decouples the log producer from the downstream stream-processing system.
 Producer
    │
    ▼
-Kafka Topic
+Aiven Kafka
    │
    ├── Partition 0
-   ├── Partition 1
-   └── Partition 2
+   └── Partition 1
 ```
+
+The producer and Spark Streaming authenticate with Aiven Kafka using secure SASL/SSL connections.
 
 ---
 
@@ -200,7 +245,7 @@ The streaming pipeline:
 3. Converts fields into appropriate data types
 4. Groups logs by service
 5. Calculates service-level metrics
-6. Writes aggregated metrics to Cassandra
+6. Writes aggregated metrics to Astra DB
 
 ### Service Metrics
 
@@ -213,41 +258,57 @@ StreamPulse calculates:
 - Maximum response time
 - Event timestamp
 
-**Example:**
+### Example
 
 ```text
 Service: payment-service
 
-Total Logs:        258
-Errors:             24
-Warnings:           42
-Avg Response:   532.70 ms
-Max Response:      998 ms
+Total Logs:        325
+Errors:             29
+Warnings:           74
+Avg Response:     545.20 ms
+Max Response:     1000 ms
 ```
+
+Spark Structured Streaming uses checkpointing to maintain streaming state and processing progress.
 
 ---
 
-## 🗄️️ Cassandra
+## ☁️ DataStax Astra DB
 
-Apache Cassandra is used to persist the aggregated service metrics.
+StreamPulse uses **DataStax Astra DB**, a managed cloud database based on Apache Cassandra, to persist aggregated service metrics.
+
+This replaces the earlier local Cassandra container while retaining Cassandra's data model and Spark Cassandra Connector integration.
 
 ### Keyspace
 
-`streampulse`
+```text
+streampulse
+```
 
 ### Table
 
-`service_metrics`
+```text
+service_metrics
+```
 
 ### Table Structure
 
-- `service`
-- `event_time`
-- `total_logs`
-- `error_count`
-- `warn_count`
-- `avg_response_time`
-- `max_response_time`
+| Column | Type | Description |
+|---|---|---|
+| `service` | text | Service name |
+| `event_time` | timestamp | Metric event timestamp |
+| `total_logs` | int | Total logs processed |
+| `error_count` | int | Number of ERROR logs |
+| `warn_count` | int | Number of WARN logs |
+| `avg_response_time` | double | Average response time |
+| `max_response_time` | int | Maximum response time |
+
+The primary key is:
+
+```text
+PRIMARY KEY (service, event_time)
+```
 
 The backend retrieves the latest available metrics for each service.
 
@@ -255,17 +316,21 @@ The backend retrieves the latest available metrics for each service.
 
 ## 🔌 FastAPI Backend
 
-FastAPI provides the backend API layer between Cassandra and the React frontend.
+FastAPI provides the backend API layer between Astra DB and the React frontend.
+
+The backend connects to Astra DB using the Cassandra Python driver and Astra Secure Connect Bundle.
 
 ### API Endpoints
 
 #### Health Check
 
-`GET /health`
+```text
+GET /health
+```
 
-Returns the health of the backend and its Cassandra connection.
+Returns the health status of the backend and database connection.
 
-**Example Response:**
+Example:
 
 ```json
 {
@@ -276,22 +341,24 @@ Returns the health of the backend and its Cassandra connection.
 
 #### All Service Metrics
 
-`GET /metrics`
+```text
+GET /metrics
+```
 
 Returns the latest metrics for all monitored services.
 
-**Example Response:**
+Example:
 
 ```json
 [
   {
     "service": "payment-service",
-    "event_time": "2026-10-03T08:36:16.079000",
-    "total_logs": 258,
-    "error_count": 24,
-    "warn_count": 42,
-    "avg_response_time": 532.70,
-    "max_response_time": 998,
+    "event_time": "2026-10-06T14:06:13.579000",
+    "total_logs": 325,
+    "error_count": 29,
+    "warn_count": 74,
+    "avg_response_time": 545.20,
+    "max_response_time": 1000,
     "status": "CRITICAL"
   }
 ]
@@ -299,16 +366,23 @@ Returns the latest metrics for all monitored services.
 
 #### Service-Specific Metrics
 
-`GET /metrics/{service}`
+```text
+GET /metrics/{service}
+```
 
-**Example:**
-`GET /metrics/payment-service`
+Example:
+
+```text
+GET /metrics/payment-service
+```
 
 Returns the latest metrics for the requested service.
 
 ### WebSocket
 
-`/ws`
+```text
+/ws
+```
 
 The React dashboard connects to this endpoint to receive live metric updates.
 
@@ -360,10 +434,12 @@ Error Count >= 10
        ▼
    CRITICAL
 
+
 Warnings or Errors
        │
        ▼
    WARNING
+
 
 No Warnings or Errors
        │
@@ -377,22 +453,29 @@ This provides a simple way to identify services that require immediate attention
 
 ## 🐳 Docker Architecture
 
-All major components run as Docker containers.
+Docker is used to containerize the local compute components of StreamPulse.
 
-### Containers
+### Docker Containers
 
-- `streampulse-kafka`
+The current Docker Compose stack contains:
+
 - `streampulse-spark`
 - `streampulse-spark-streaming`
-- `streampulse-cassandra`
 - `streampulse-producer`
 - `streampulse-backend`
 - `streampulse-frontend`
 
+Kafka and Cassandra are **not run as local Docker containers** in the current architecture.
+
+Instead:
+
+- Kafka → **Aiven Kafka**
+- Database → **DataStax Astra DB**
+
 Docker Compose manages:
 
 - Container creation
-- Networking
+- Local networking
 - Port mappings
 - Environment variables
 - Service dependencies
@@ -422,18 +505,29 @@ streampulse/
 ├── producer/
 │   ├── Dockerfile
 │   ├── log_generator.py
-│   └── requirements.txt
+│   ├── requirements.txt
+│   └── ca.pem
 │
 ├── streaming/
 │   ├── spark_streaming.py
+│   ├── certs/
+│   │   └── secure-connect-streampulse.zip
 │   └── checkpoint/
 │
 ├── tests/
 │
 ├── docs/
+│   ├── dashboard.png
+│   ├── service-metrics.png
+│   ├── avg-response-time.png
+│   └── error-count.png
 │
+├── .env
+├── .gitignore
 └── README.md
 ```
+
+> **Security:** `.env` contains credentials for cloud services and is excluded from Git using `.gitignore`. Credentials and access tokens should never be committed to the repository.
 
 ---
 
@@ -448,15 +542,34 @@ Install:
 
 Ensure Docker Desktop is running before starting the application.
 
+The project also requires active credentials for:
+
+- Aiven Kafka
+- DataStax Astra DB
+
+### Environment Variables
+
+Create a `.env` file in the project root:
+
+```env
+KAFKA_SERVER=<AIVEN_KAFKA_SERVER>
+KAFKA_USERNAME=<AIVEN_KAFKA_USERNAME>
+KAFKA_PASSWORD=<AIVEN_KAFKA_PASSWORD>
+KAFKA_CA_FILE=producer/ca.pem
+ASTRA_TOKEN=<ASTRA_APPLICATION_TOKEN>
+```
+
+Do not commit this file to GitHub.
+
 ### Start the Complete Stack
 
 From the project root:
 
 ```bash
-docker compose -f infrastructure/docker-compose.yml up -d --build
+docker compose --env-file .env -f infrastructure/docker-compose.yml up -d --build
 ```
 
-This starts the complete StreamPulse platform.
+This starts the local Docker components of the StreamPulse platform.
 
 ### Check Containers
 
@@ -466,19 +579,23 @@ docker ps
 
 The following containers should be active and running:
 
-- `streampulse-kafka`
-- `streampulse-spark`
-- `streampulse-spark-streaming`
-- `streampulse-cassandra`
-- `streampulse-producer`
-- `streampulse-backend`
-- `streampulse-frontend`
+```text
+streampulse-spark
+streampulse-spark-streaming
+streampulse-producer
+streampulse-backend
+streampulse-frontend
+```
+
+Kafka and Astra DB are managed externally through their cloud services.
 
 ### Open the Dashboard
 
 Open your browser and navigate to:
 
-[http://localhost:5173](http://localhost:5173)
+```text
+http://localhost:5173
+```
 
 The dashboard automatically connects to the backend WebSocket and streams live metrics.
 
@@ -516,16 +633,28 @@ docker logs streampulse-backend
 docker logs streampulse-frontend
 ```
 
+### Check Backend Health
+
+```bash
+curl http://localhost:8001/health
+```
+
+### Get Current Metrics
+
+```bash
+curl http://localhost:8001/metrics
+```
+
 ### Stop the Complete Stack
 
 ```bash
-docker compose -f infrastructure/docker-compose.yml down
+docker compose --env-file .env -f infrastructure/docker-compose.yml down
 ```
 
 ### Start the Stack Again
 
 ```bash
-docker compose -f infrastructure/docker-compose.yml up -d
+docker compose --env-file .env -f infrastructure/docker-compose.yml up -d
 ```
 
 ---
@@ -539,7 +668,7 @@ A typical application log follows this path:
            │
            │ JSON Event
            ▼
-2. Apache Kafka
+2. Aiven Kafka
            │
            │ Streaming Event
            ▼
@@ -547,7 +676,7 @@ A typical application log follows this path:
            │
            │ Aggregated Metrics
            ▼
-4. Apache Cassandra
+4. DataStax Astra DB
            │
            │ Latest Metrics
            ▼
@@ -564,19 +693,25 @@ This transforms raw application logs into real-time service-level monitoring met
 
 ## 🩺 Health Checks
 
-Docker health checks are configured for critical services:
-
-### Cassandra
-
-Cassandra is validated via a CQL query to verify the database is actively accepting connections.
-
-### Kafka
-
-Kafka is checked using a broker API request to verify that the broker is available.
+Docker health checks are configured for critical local services.
 
 ### Backend
 
-FastAPI exposes `/health`. Docker uses this endpoint to determine backend readiness. The frontend waits for this check before starting.
+FastAPI exposes:
+
+```text
+GET /health
+```
+
+Docker uses this endpoint to determine backend readiness.
+
+The frontend depends on the backend health check before starting.
+
+### Cloud Services
+
+Aiven Kafka and Astra DB are externally managed services.
+
+Their availability and connectivity are validated by the producer, Spark Streaming, and backend connections respectively.
 
 ---
 
@@ -586,17 +721,21 @@ FastAPI exposes `/health`. Docker uses this endpoint to determine backend readin
 
 Kafka provides a distributed event-streaming layer and decouples log generation from stream processing.
 
+### Aiven Kafka
+
+Aiven provides managed Kafka infrastructure, allowing StreamPulse to use a cloud-hosted Kafka cluster without maintaining a Kafka broker locally.
+
 ### Apache Spark
 
 Spark Structured Streaming provides distributed, fault-tolerant processing for continuously arriving log events.
 
-### Apache Cassandra
+### DataStax Astra DB
 
-Cassandra provides distributed NoSQL storage optimized for high-write-volume metric data.
+Astra DB provides managed cloud storage using the Cassandra data model, making it suitable for high-volume metric writes and distributed applications.
 
 ### FastAPI
 
-FastAPI provides a high-performance backend API and native asynchronous WebSocket server.
+FastAPI provides a high-performance backend API and WebSocket server.
 
 ### React
 
@@ -604,7 +743,7 @@ React provides an interactive, responsive user interface for visualizing real-ti
 
 ### Docker & Docker Compose
 
-Docker isolates dependencies and creates reproducible environments, while Docker Compose orchestrates multi-container operations.
+Docker isolates dependencies and creates reproducible environments, while Docker Compose orchestrates the local application components.
 
 ---
 
@@ -614,11 +753,14 @@ StreamPulse includes several reliability mechanisms:
 
 - Kafka topic partitioning
 - Spark Structured Streaming checkpointing
-- Cassandra data persistence through Docker volumes
-- Docker health checks & restart policies
+- Cloud persistence through Astra DB
+- Docker health checks
+- Docker restart policies
 - Service dependency management
 - Backend health validation endpoint
-- WebSocket-based live communication with auto-reconnection
+- WebSocket-based live communication
+- Secure SASL/SSL connection to Aiven Kafka
+- Secure Astra DB authentication using an application token and Secure Connect Bundle
 
 ---
 
@@ -627,12 +769,17 @@ StreamPulse includes several reliability mechanisms:
 Planned improvements include:
 
 - Real-time anomaly detection
-- Configurable alert thresholds (Email and Slack alerts)
-- Historical metric analysis & time-series visualizations
-- Service-level filtering & custom search
-- Authentication and authorization (JWT/OAuth)
+- Configurable alert thresholds
+- Email and Slack alerts
+- Historical metric analysis
+- Time-series visualizations
+- Service-level filtering and custom search
+- Authentication and authorization using JWT/OAuth
 - Automated unit and integration testing pipelines
-- Production Kubernetes (K8s) deployment manifests
+- Production Kubernetes (K8s) deployment
+- Public cloud deployment
+- CI/CD pipeline
+- Centralized application observability
 
 ---
 
@@ -656,8 +803,6 @@ StreamPulse provides a real-time monitoring dashboard for observing application 
 
 ![Error Count by Service](docs/error-count.png)
 
-**Frontend URL:** [http://localhost:5173](http://localhost:5173)
-
 ---
 
 ## 🎯 Project Goals
@@ -667,43 +812,65 @@ StreamPulse was built to demonstrate practical experience with:
 - Distributed systems design
 - Event-driven architecture
 - Real-time streaming data pipelines
-- Spark Structured Streaming & Kafka integration
-- NoSQL data modeling in Cassandra
-- Async REST APIs & WebSockets
+- Spark Structured Streaming and Kafka integration
+- NoSQL data modeling using Cassandra-compatible storage
+- Cloud-managed Kafka and database services
+- REST APIs and WebSockets
 - Full-stack dashboard integration
+- Containerized application development
 - Multi-container orchestration with Docker
+- Real-time system monitoring
 
 ---
 
 ## 📌 Current Project Status
 
-**Status:** Local Deployment — Fully Functional
+**Status: Local Deployment — Fully Functional**
 
-The complete StreamPulse pipeline is running as a Dockerized multi-container application.
+The complete StreamPulse pipeline is currently running as a Dockerized application with cloud-managed Kafka and database services.
 
 The current implementation includes:
 
 - Real-time log generation
-- Kafka event streaming
+- Aiven Kafka event streaming
 - Spark Structured Streaming
-- Cassandra persistence
+- Astra DB persistence
 - FastAPI REST APIs
 - WebSocket communication
 - React real-time dashboard
 - Docker Compose orchestration
 - Container health checks
+- Secure cloud connectivity
 
 ### Current Architecture Summary
 
 ```text
-Python Producer ──> Apache Kafka ──> Spark Structured Streaming ──> Apache Cassandra ──> FastAPI ──> WebSocket ──> React Dashboard
+Python Producer
+      │
+      ▼
+Aiven Kafka ☁️
+      │
+      ▼
+Spark Structured Streaming
+      │
+      ▼
+DataStax Astra DB ☁️
+      │
+      ▼
+FastAPI
+      │
+      ▼
+WebSocket
+      │
+      ▼
+React Dashboard
 ```
 
 ---
 
 ## 👩‍💻 Author
 
-**Ishika Srivastava**  
+**Ishika Srivastava**
 
 ---
 
@@ -711,15 +878,39 @@ Python Producer ──> Apache Kafka ──> Spark Structured Streaming ──> 
 
 The project is designed to be deployed as a production-style distributed application.
 
-- **Live Demo:** Coming Soon
+Planned deployment architecture:
+
+```text
+React Dashboard
+      ↓
+Frontend Hosting
+      ↓
+FastAPI Backend
+      ↓
+Astra DB ☁️
+
+Python Producer
+      ↓
+Aiven Kafka ☁️
+      ↓
+Spark Structured Streaming
+```
+
+### Deployment Goals
+
+- Public live dashboard
+- Public API endpoint
+- Cloud-hosted compute
+- Managed Kafka
+- Managed Cassandra-compatible database
+- HTTPS
+- Production environment variables and secrets
+- CI/CD
+
+**Live Demo:** Coming Soon
 
 ---
 
 ## 📄 License
 
 This project is currently intended as a personal portfolio and learning project.
-
-```
-
-```
-

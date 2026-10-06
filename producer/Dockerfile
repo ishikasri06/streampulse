@@ -7,5 +7,6 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY log_generator.py .
+COPY ca.pem .
 
 CMD ["python", "log_generator.py"]

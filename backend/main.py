@@ -4,6 +4,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 import os
 from fastapi.middleware.cors import CORSMiddleware
 from cassandra.cluster import Cluster
+from cassandra.auth import PlainTextAuthProvider
 from cassandra.io.asyncioreactor import AsyncioConnection
 
 app = FastAPI(title="StreamPulse API")
@@ -18,9 +19,25 @@ app.add_middleware(
 
 CASSANDRA_HOST = os.getenv("CASSANDRA_HOST", "localhost")
 
+
+ASTRA_TOKEN = os.getenv("ASTRA_TOKEN")
+ASTRA_SECURE_CONNECT_BUNDLE = os.getenv(
+    "ASTRA_SECURE_CONNECT_BUNDLE",
+    "/app/certs/secure-connect-streampulse.zip"
+)
+
+cloud_config = {
+    "secure_connect_bundle": ASTRA_SECURE_CONNECT_BUNDLE
+}
+
+auth_provider = PlainTextAuthProvider(
+    username="token",
+    password=ASTRA_TOKEN
+)
+
 cluster = Cluster(
-    [CASSANDRA_HOST],
-    connection_class=AsyncioConnection
+    cloud=cloud_config,
+    auth_provider=auth_provider
 )
 
 session = cluster.connect("streampulse")
